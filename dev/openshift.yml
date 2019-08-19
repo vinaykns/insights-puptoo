@@ -1,3 +1,98 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  labels:
+    app: insights-puptoo
+  name: insights-puptoo
+spec:
+  lookupPolicy:
+    local: false
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  labels:
+    app: platform-component-tester
+  name: platform-component-tester
+spec:
+  lookupPolicy:
+    local: false
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  labels:
+    app: insights-puptoo
+  name: insights-puptoo
+spec:
+  failedBuildsHistoryLimit: 5
+  nodeSelector: null
+  output:
+    to:
+      kind: ImageStreamTag
+      name: insights-puptoo:latest
+  postCommit: {}
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  runPolicy: Serial
+  source:
+    git:
+      uri: https://github.com/RedHatInsights/insights-puptoo.git
+  strategy:
+    sourceStrategy:
+      env:
+      - name: ENABLE_PIPENV
+        value: "true"
+      from:
+        kind: ImageStreamTag
+        name: python-36-rhel7:latest
+    type: Source
+  successfulBuildsHistoryLimit: 5
+  triggers:
+  - imageChange:
+    type: ImageChange
+  - type: ConfigChange
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  labels:
+    app: platform-component-tester
+  name: platform-component-tester
+spec:
+  failedBuildsHistoryLimit: 5
+  nodeSelector: null
+  output:
+    to:
+      kind: ImageStreamTag
+      name: platform-component-tester:latest
+  postCommit: {}
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  runPolicy: Serial
+  source:
+    git:
+      uri: https://github.com/RedHatInsights/platform-component-tester.git
+      ref: master
+  strategy:
+    sourceStrategy:
+      env:
+      - name: ENABLE_PIPENV
+        value: "true"
+      from:
+        kind: ImageStreamTag
+        name: python-36-rhel7:latest
+    type: Source
+  successfulBuildsHistoryLimit: 5
+  triggers:
+  - imageChange:
+    type: ImageChange
+  - type: ConfigChange
+---
 apiVersion: apps.openshift.io/v1
 kind: DeploymentConfig
 metadata:
@@ -60,102 +155,9 @@ spec:
       from:
         kind: ImageStreamTag
         name: insights-puptoo:latest
-        namespace: buildfactory
+        namespace: sadams
     type: ImageChange
   - type: ConfigChange
----
-apiVersion: image.openshift.io/v1
-kind: ImageStream
-metadata:
-  labels:
-    app: test-consumer
-  name: test-consumer
-spec:
-  lookupPolicy:
-    local: false
----
-apiVersion: image.openshift.io/v1
-kind: ImageStream
-metadata:
-  labels:
-    app: test-producer
-  name: test-producer
-spec:
-  lookupPolicy:
-    local: false
----
-apiVersion: build.openshift.io/v1
-kind: BuildConfig
-metadata:
-  labels:
-    app: test-consumer
-  name: test-consumer
-spec:
-  failedBuildsHistoryLimit: 5
-  nodeSelector: null
-  output:
-    to:
-      kind: ImageStreamTag
-      name: test-consumer:latest
-  postCommit: {}
-  resources:
-    limits:
-      cpu: 250m
-      memory: 512Mi
-  runPolicy: Serial
-  source:
-    contextDir: dev/io_test/consumer
-    git:
-      ref: master
-      uri: git@github.com:RedHatInsights/insights-puptoo.git
-    sourceSecret:
-      name: nachobot
-    type: Git
-  strategy:
-    dockerStrategy:
-      from:
-        kind: ImageStreamTag
-        name: python-36-rhel7:latest
-    type: Docker
-  successfulBuildsHistoryLimit: 5
-  triggers: []
-
----
-apiVersion: build.openshift.io/v1
-kind: BuildConfig
-metadata:
-  labels:
-    app: test-producer
-  name: test-producer
-spec:
-  failedBuildsHistoryLimit: 5
-  nodeSelector: null
-  output:
-    to:
-      kind: ImageStreamTag
-      name: test-producer:latest
-  postCommit: {}
-  resources:
-    limits:
-      cpu: 250m
-      memory: 512Mi
-  runPolicy: Serial
-  source:
-    contextDir: dev/io_test/producer
-    git:
-      ref: master
-      uri: git@github.com:RedHatInsights/insights-puptoo.git
-    sourceSecret:
-      name: nachobot
-    type: Git
-  strategy:
-    dockerStrategy:
-      from:
-        kind: ImageStreamTag
-        name: python-36-rhel7:latest
-    type: Docker
-  successfulBuildsHistoryLimit: 5
-  triggers: []
 ---
 apiVersion: apps.openshift.io/v1
 kind: DeploymentConfig
@@ -191,7 +193,11 @@ spec:
       - env:
         - name: BOOTSTRAP_SERVERS
           value: platform-mq-kafka-bootstrap.platform-mq.svc:9092
-        image: image-registry.openshift-image-registry.svc:5000/sadams/test-consumer:latest
+        - name: COMPONENT
+          value: pup
+        - name: ROLE
+          value: consume
+        image: image-registry.openshift-image-registry.svc:5000/sadams/platform-component-tester:latest
         imagePullPolicy: Always
         name: test-consumer
         resources:
@@ -210,4 +216,13 @@ spec:
       terminationGracePeriodSeconds: 60
   test: false
   triggers:
+  - imageChangeParams:
+      automatic: true
+      containerNames:
+      - test-consumer
+      from:
+        kind: ImageStreamTag
+        name: platform-component-tester:latest
+        namespace: sadams
+    type: ImageChange
   - type: ConfigChange

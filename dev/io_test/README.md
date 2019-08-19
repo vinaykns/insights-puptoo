@@ -1,0 +1,1 @@
+Removed IO Test from this repo in favor of the [Platform Component Tester](https://www.github.com/redhatinsights/platform-component-tester)

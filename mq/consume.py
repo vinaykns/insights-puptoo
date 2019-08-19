@@ -9,6 +9,5 @@ def init_consumer():
                              bootstrap_servers=config.BOOTSTRAP_SERVERS,
                              group_id=config.APP_NAME,
                              value_deserializer=lambda m: json.loads(m.decode("utf-8")),
-                             retry_backoff_ms=1000,
-                             consumer_timeout_ms=200)
+                             retry_backoff_ms=1000)
     return consumer
